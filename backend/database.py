@@ -350,6 +350,36 @@ class DatabaseManager:
             finally:
                 conn.close()
     
+    def delete_track(self, track_id: int) -> bool:
+        """
+        Hard delete a tracking object from the database.
+        
+        Args:
+            track_id: Tracking ID to delete
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        with self.lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    DELETE FROM tracking_objects 
+                    WHERE track_id = ?
+                """, (track_id,))
+                
+                conn.commit()
+                if cursor.rowcount > 0:
+                    print(f"🗑️ Deleted track_id={track_id}")
+                    return True
+                return False
+            except Exception as e:
+                print(f"✗ Error deleting track {track_id}: {e}")
+                return False
+            finally:
+                conn.close()
+
     def _row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
         """
         Convert a database row to a dictionary.
@@ -486,9 +516,9 @@ class DatabaseManager:
                     SELECT class_name, ai_info_json, frame_snapshot, last_seen
                     FROM tracking_objects 
                     WHERE ai_info_json IS NOT NULL 
-                    AND last_seen >= datetime('now', '-10 minutes')
+                    AND last_seen >= datetime('now', '-' || ? || ' minutes')
                     ORDER BY last_seen DESC
-                """)
+                """, (minutes,))
                 
                 seen_species = set()
                 results = []

@@ -645,6 +645,11 @@ class EventsManager {
 
         return `
             <div class="event-card ${isSelected}" data-event-id="${event.event_id}">
+                ${event.frame_snapshot ? `
+                    <div class="track-snapshot" style="margin-bottom: 10px; height: 120px;">
+                        <img src="data:image/jpeg;base64,${event.frame_snapshot}" alt="Event Snapshot">
+                    </div>
+                ` : ''}
                 <div class="event-card-header">
                     <div class="event-title">${event.event_id}</div>
                     <span class="event-class">${className}</span>

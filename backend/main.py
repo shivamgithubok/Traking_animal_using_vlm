@@ -81,9 +81,16 @@ class VideoRecorder:
         # Release video writer
         if self.writer is not None:
             self.writer.release()
+            self.writer = None
+        
+        # If the class was renamed, move the file now
+        self._finalize_move_if_needed()
         
         # Calculate duration
         duration = (self.end_time - self.start_time).total_seconds()
+        
+        final_video_path = self.video_path
+        final_metadata_path = self.metadata_path
         
         # Save metadata
         metadata = {
@@ -95,15 +102,73 @@ class VideoRecorder:
             "duration_seconds": round(duration, 2),
             "frame_count": self.frame_count,
             "fps": self.fps,
-            "video_path": self.video_path,
+            "video_path": final_video_path,
             "detected_classes": [self.class_name] # For API compatibility
         }
         
-        with open(self.metadata_path, 'w') as f:
+        # Ensure directory exists (might have changed during rename)
+        os.makedirs(os.path.dirname(final_video_path), exist_ok=True)
+        
+        with open(final_metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2)
         
-        print(f"✅ Stopped recording: {self.video_path} ({duration:.1f}s)")
+        print(f"✅ Stopped recording: {final_video_path} ({duration:.1f}s)")
         return metadata
+
+    def rename(self, new_class_name: str, codec_str: str):
+        """Update the target class name and paths for when the recording stops."""
+        if not self.is_active or self.class_name == new_class_name:
+            return
+
+        print(f"🔄 Queuing rename for track {self.track_id}: {self.class_name} -> {new_class_name}")
+
+        # 1. Prepare new directory info
+        new_class_dir = os.path.join(self.output_dir, new_class_name)
+        
+        # 2. Update existing video file path (we'll move it on stop())
+        old_video_path = self.video_path
+        timestamp = self.start_time.strftime("%Y%m%d_%H%M%S")
+        self.filename_base = f"{timestamp}_track_{self.track_id}"
+        
+        # We don't move the file yet because it's still open by the writer!
+        # We just update the paths where we WANT it to be eventually.
+        self.target_video_path = os.path.join(new_class_dir, f"{self.filename_base}.mp4")
+        self.target_metadata_path = os.path.join(new_class_dir, f"{self.filename_base}.json")
+        self.new_class_name = new_class_name
+
+    def _finalize_move_if_needed(self):
+        """Move the recorded file to its final destination after stopping."""
+        if hasattr(self, 'new_class_name') and self.new_class_name != self.class_name:
+            try:
+                os.makedirs(os.path.dirname(self.target_video_path), exist_ok=True)
+                if os.path.exists(self.video_path):
+                    os.rename(self.video_path, self.target_video_path)
+                
+                # Update internal state for metadata accuracy
+                self.video_path = self.target_video_path
+                self.metadata_path = self.target_metadata_path
+                self.class_name = self.new_class_name
+                print(f"📂 Moved recording to final destination: {self.video_path}")
+            except Exception as e:
+                print(f"✗ Error moving file to final destination: {e}")
+
+    def cancel(self):
+        """Stop recording and delete files."""
+        if not self.is_active:
+            return
+        
+        self.is_active = False
+        if self.writer is not None:
+            self.writer.release()
+        
+        try:
+            if os.path.exists(self.video_path):
+                os.remove(self.video_path)
+            if os.path.exists(self.metadata_path):
+                os.remove(self.metadata_path)
+            print(f"🗑️ Cancelled and deleted recording: {self.video_path}")
+        except Exception as e:
+            print(f"✗ Error deleting cancelled recording: {e}")
 
 
 class RecordingManager:
@@ -160,6 +225,10 @@ class RecordingManager:
                 # Handle key naming differences (tracker might use class_name or class)
                 class_name = det.get('class_name') or det.get('class') or 'unknown'
                 
+                # CRITICAL: IGNORE HUMANS
+                if class_name.lower() == "person":
+                    continue
+
                 self.last_seen[track_id] = current_time
                 
                 if track_id not in self.active_recordings:
@@ -196,6 +265,26 @@ class RecordingManager:
                     del self.last_seen[track_id]
             except Exception as e:
                 print(f"❌ Error stopping recording for track {track_id}: {e}")
+    
+    def cancel_recording(self, track_id: int):
+        """Cancel and delete recording for track."""
+        if track_id in self.active_recordings:
+            try:
+                self.active_recordings[track_id].cancel()
+                del self.active_recordings[track_id]
+                if track_id in self.last_seen:
+                    del self.last_seen[track_id]
+            except Exception as e:
+                print(f"❌ Error cancelling recording for track {track_id}: {e}")
+    
+    def rename_recording(self, track_id: int, new_class_name: str):
+        """Update the class name and target path for a recording."""
+        with self.lock:
+            if track_id in self.active_recordings:
+                try:
+                    self.active_recordings[track_id].rename(new_class_name, self.codec)
+                except Exception as e:
+                    print(f"❌ Error renaming recording for track {track_id}: {e}")
     
     def cleanup_disappeared_tracks(self, current_track_ids: set, current_time: float):
         disappeared_tracks = []
@@ -269,6 +358,7 @@ async def startup_event():
         # Initialize tracking manager
         tracking_manager = TrackingManager(
             db_manager=db_manager,
+            recording_manager=recording_manager,
             enable_ai=True,
             ai_timeout=30.0
         )
@@ -357,7 +447,8 @@ async def list_events() -> List[Dict]:
                         "detected_classes": [data.get("class_name", "unknown")],
                         "has_video": video_path.exists(),
                         "path_ref": f"{class_dir.name}/{video_filename}",
-                        "ai_info": ai_info
+                        "ai_info": ai_info,
+                        "frame_snapshot": obj.get("frame_snapshot") if obj else None
                     })
                 except Exception as e:
                     print(f"Error reading metadata {metadata_file}: {e}")
@@ -408,8 +499,10 @@ async def get_event_metadata(event_id: str):
         # Enrich with database AI info
         if db_manager and "track_id" in data:
             obj = db_manager.get_tracking_object(data["track_id"])
-            if obj and obj.get("ai_info"):
-                data["ai_info"] = obj["ai_info"]
+            if obj:
+                if obj.get("ai_info"):
+                    data["ai_info"] = obj["ai_info"]
+                data["frame_snapshot"] = obj.get("frame_snapshot")
                 
         return data
 
@@ -420,7 +513,7 @@ async def get_history() -> List[Dict]:
     """
     if not db_manager:
         return []
-    return db_manager.get_unique_species_history(minutes=10)
+    return db_manager.get_unique_species_history(minutes=5)
 
 # ---------------- WEBSOCKET STREAM ---------------- #
 

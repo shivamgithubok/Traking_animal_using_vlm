@@ -24,6 +24,7 @@ class TrackingManager:
     def __init__(
         self, 
         db_manager: DatabaseManager,
+        recording_manager: Any = None,
         enable_ai: bool = True,
         ai_timeout: float = 30.0
     ):
@@ -36,6 +37,7 @@ class TrackingManager:
             ai_timeout: Timeout for AI calls in seconds
         """
         self.db_manager = db_manager
+        self.recording_manager = recording_manager
         self.enable_ai = enable_ai
         self.ai_timeout = ai_timeout
         
@@ -114,6 +116,10 @@ class TrackingManager:
             self.track_last_seen[track_id] = current_time # Update persistence timer
             class_name = detection.get('class_name', 'unknown')
             
+            # CRITICAL: STRICTLY IGNORE HUMANS
+            if class_name.lower() == "person":
+                continue
+            
             # Check if this is a new tracking ID
             if track_id not in self.active_track_ids:
                 await self._handle_new_track(
@@ -180,7 +186,8 @@ class TrackingManager:
                 "track_id": track_id,
                 "class_name": class_name,
                 "first_seen": timestamp.isoformat(),
-                "ai_info": None
+                "ai_info": None,
+                "frame_snapshot": frame_snapshot
             }
         })
         
@@ -316,9 +323,40 @@ class TrackingManager:
             # Convert Pydantic model to dict
             ai_info_dict = wildlife_info.model_dump()
             
+            # CRITICAL: If AI identifies as non-animal, DELETE IT
+            if not ai_info_dict.get("is_animal"):
+                print(f"🚫 Track {track_id} is not an animal. Purging from system.")
+                
+                # Delete from database
+                self.db_manager.delete_track(track_id)
+                
+                # Cancel recording if active
+                if self.recording_manager:
+                    self.recording_manager.cancel_recording(track_id)
+
+                # Remove from active tracks
+                self.active_track_ids.discard(track_id)
+                self.track_last_seen.pop(track_id, None)
+                
+                # Broadcast removal to UI
+                await self.broadcast_message({
+                    "type": "track_removed",
+                    "data": {
+                        "track_id": track_id
+                    }
+                })
+                return
+
             # Update database
             self.db_manager.update_ai_info(track_id, ai_info_dict)
             
+            # Rename recording folder/file to specific species name
+            if self.recording_manager and ai_info_dict.get("commonName"):
+                species_name = ai_info_dict["commonName"]
+                # Basic sanitization
+                safe_name = "".join([c if c.isalnum() or c in " _-" else "_" for c in species_name])
+                self.recording_manager.rename_recording(track_id, safe_name)
+
             print(f"✓ AI processing complete for track_id={track_id}")
             
             # Broadcast update
@@ -326,7 +364,8 @@ class TrackingManager:
                 "type": "track_updated",
                 "data": {
                     "track_id": track_id,
-                    "ai_info": ai_info_dict
+                    "ai_info": ai_info_dict,
+                    "frame_snapshot": frame_snapshot
                 }
             })
             
