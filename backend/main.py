@@ -21,6 +21,7 @@ from config import Config
 from backend.tracker import ObjectTracker, CameraCapture
 from backend.database import DatabaseManager
 from backend.tracking_manager import TrackingManager
+import backend.ai_broker as ai_broker
 
 # ---------------- VIDEO RECORDING MODULES ---------------- #
 
@@ -514,6 +515,30 @@ async def get_history() -> List[Dict]:
     if not db_manager:
         return []
     return db_manager.get_unique_species_history(minutes=5)
+
+@app.get("/api/config/vlm_mode")
+async def get_vlm_mode():
+    return {"mode": ai_broker.get_vlm_mode()}
+
+@app.post("/api/config/vlm_mode")
+async def set_vlm_mode(data: Dict[str, str]):
+    mode = data.get("mode")
+    if not mode:
+        raise HTTPException(status_code=400, detail="Mode is required")
+    
+    if ai_broker.set_vlm_mode(mode):
+        # Broadcast to all clients
+        for websocket in active_connections:
+            try:
+                await websocket.send_json({
+                    "type": "vlm_mode_updated",
+                    "data": {"mode": mode}
+                })
+            except:
+                pass
+        return {"status": "success", "mode": mode}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid mode. Use 'local' or 'cloud'")
 
 # ---------------- WEBSOCKET STREAM ---------------- #
 

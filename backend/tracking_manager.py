@@ -14,8 +14,9 @@ import numpy as np
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
+from config import Config
 from backend.database import DatabaseManager
-from backend.ai_module import get_wildlife_info
+import backend.ai_broker as ai_broker
 
 
 class TrackingManager:
@@ -311,7 +312,7 @@ class TrackingManager:
             wildlife_info = await asyncio.wait_for(
                 loop.run_in_executor(
                     None,
-                    get_wildlife_info,
+                    ai_broker.get_wildlife_info,
                     class_name,
                     frame_snapshot,
                     history_str,

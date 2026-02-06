@@ -35,7 +35,10 @@ class VideoStreamClient {
             modalBody: document.getElementById('modalBody'),
             modalTitle: document.getElementById('modalTitle'),
             historyTracks: document.getElementById('historyTracks'),
-            historySpeciesCount: document.getElementById('historySpeciesCount')
+            historySpeciesCount: document.getElementById('historySpeciesCount'),
+            vlmLocalBtn: document.getElementById('vlmLocalBtn'),
+            vlmCloudBtn: document.getElementById('vlmCloudBtn'),
+            vlmStatusText: document.getElementById('vlmStatusText')
         };
 
         // Track state
@@ -47,6 +50,9 @@ class VideoStreamClient {
 
         // Event listeners
         this.setupEventListeners();
+
+        // Initialize VLM mode
+        this.fetchVlmMode();
 
         // Start history polling (every 30 seconds)
         this.fetchHistory();
@@ -62,6 +68,10 @@ class VideoStreamClient {
         window.addEventListener('click', (e) => {
             if (e.target === this.elements.detailModal) this.hideModal();
         });
+
+        // VLM Mode toggles
+        this.elements.vlmLocalBtn.addEventListener('click', () => this.updateVlmMode('local'));
+        this.elements.vlmCloudBtn.addEventListener('click', () => this.updateVlmMode('cloud'));
     }
 
     connect() {
@@ -133,6 +143,10 @@ class VideoStreamClient {
 
                 case 'track_removed':
                     this.handleTrackRemoved(data.data);
+                    break;
+
+                case 'vlm_mode_updated':
+                    this.setVlmUiState(data.data.mode);
                     break;
 
                 case 'error':
@@ -532,6 +546,49 @@ class VideoStreamClient {
         statusDot.classList.remove('connected');
         if (status === 'connected') {
             statusDot.classList.add('connected');
+        }
+    }
+
+    // VLM Mode Management
+    async fetchVlmMode() {
+        try {
+            const response = await fetch('/api/config/vlm_mode');
+            if (response.ok) {
+                const data = await response.json();
+                this.setVlmUiState(data.mode);
+            }
+        } catch (error) {
+            console.error('Error fetching VLM mode:', error);
+        }
+    }
+
+    async updateVlmMode(mode) {
+        try {
+            const response = await fetch('/api/config/vlm_mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode })
+            });
+            if (response.ok) {
+                this.setVlmUiState(mode);
+            }
+        } catch (error) {
+            console.error('Error updating VLM mode:', error);
+        }
+    }
+
+    setVlmUiState(mode) {
+        console.log(`🧠 Updating VLM UI State: ${mode}`);
+        
+        // Update button active states
+        if (mode === 'local') {
+            this.elements.vlmLocalBtn.classList.add('active');
+            this.elements.vlmCloudBtn.classList.remove('active');
+            this.elements.vlmStatusText.innerHTML = 'Current Mode: <strong>Local (Ollama)</strong>';
+        } else {
+            this.elements.vlmCloudBtn.classList.add('active');
+            this.elements.vlmLocalBtn.classList.remove('active');
+            this.elements.vlmStatusText.innerHTML = 'Current Mode: <strong>Cloud (OpenRouter)</strong>';
         }
     }
 }

@@ -98,11 +98,19 @@
                             </div>
                         </div>
 
-                        <!-- Configuration Panel -->
+                        <!-- VLM Selection Panel -->
                         <div class="panel">
-                            <h2>⚙️ Configuration</h2>
-                            <div class="config-info" id="configInfo">
-                                <p>Loading...</p>
+                            <h2>🧠 VLM Mode</h2>
+                            <div class="vlm-toggle">
+                                <button id="vlmLocalBtn" class="vlm-btn" data-mode="local">
+                                    <span class="vlm-icon">🏠</span> Local (Ollama)
+                                </button>
+                                <button id="vlmCloudBtn" class="vlm-btn active" data-mode="cloud">
+                                    <span class="vlm-icon">☁️</span> Cloud (OpenRouter)
+                                </button>
+                            </div>
+                            <div class="vlm-status" id="vlmStatusText">
+                                Current Mode: <strong>Cloud</strong>
                             </div>
                         </div>
 

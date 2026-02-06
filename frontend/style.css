@@ -630,6 +630,60 @@ body {
     color: var(--text-primary);
     font-weight: 500;
 }
+/* VLM Toggle */
+.vlm-toggle {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.vlm-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.vlm-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: var(--text-primary);
+}
+
+.vlm-btn.active {
+    background: rgba(67, 97, 238, 0.15);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.vlm-icon {
+    font-size: 1.4rem;
+    margin-bottom: 6px;
+}
+
+.vlm-status {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 6px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+.vlm-status strong {
+    color: var(--accent-primary);
+    text-transform: uppercase;
+}
 
 /* Footer */
 .footer {

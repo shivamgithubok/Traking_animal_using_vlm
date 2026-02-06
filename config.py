@@ -59,6 +59,8 @@ class Config:
 
     # AI settings
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+    LOCAL_AI_MODEL = os.getenv("LOCAL_AI_MODEL", "llava:7b")
+    VLM_MODE = os.getenv("VLM_MODE", "cloud") # "cloud" or "local"
 
     # Tracker filtering (COCO indices: 14=bird, 15=cat, 16=dog, ... 23=giraffe)
     ALLOWED_CLASSES = [14, 15, 16, 17, 18, 19, 20, 21, 22, 23]

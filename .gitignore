@@ -40,3 +40,8 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+backend/old
+backend/basic.py
+backend/detections.db
+backend/tracking_data.db
+backend/yolo8n.pt

@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 from config import Config
 
-# Initialize client with OpenRouter's base URL
+# Initialize cliAent with OpenRouter's base URL
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=Config.OPENROUTER_API_KEY,
