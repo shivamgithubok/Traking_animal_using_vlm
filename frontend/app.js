@@ -38,7 +38,11 @@ class VideoStreamClient {
             historySpeciesCount: document.getElementById('historySpeciesCount'),
             vlmLocalBtn: document.getElementById('vlmLocalBtn'),
             vlmCloudBtn: document.getElementById('vlmCloudBtn'),
-            vlmStatusText: document.getElementById('vlmStatusText')
+            vlmFlorenceBtn: document.getElementById('vlmFlorenceBtn'),
+            vlmStatusText: document.getElementById('vlmStatusText'),
+            vlmOnlyToggle: document.getElementById('vlmOnlyToggle'),
+            vlmOnlyStage: document.getElementById('vlmOnlyStage'),
+            vlmOnlyDescription: document.getElementById('vlmOnlyDescription')
         };
 
         // Track state
@@ -51,8 +55,9 @@ class VideoStreamClient {
         // Event listeners
         this.setupEventListeners();
 
-        // Initialize VLM mode
+        // Initialize VLM mode and VLM-Only status
         this.fetchVlmMode();
+        this.fetchVlmOnlyStatus();
 
         // Start history polling (every 30 seconds)
         this.fetchHistory();
@@ -72,6 +77,10 @@ class VideoStreamClient {
         // VLM Mode toggles
         this.elements.vlmLocalBtn.addEventListener('click', () => this.updateVlmMode('local'));
         this.elements.vlmCloudBtn.addEventListener('click', () => this.updateVlmMode('cloud'));
+        this.elements.vlmFlorenceBtn.addEventListener('click', () => this.updateVlmMode('florence'));
+
+        // VLM Only toggle
+        this.elements.vlmOnlyToggle.addEventListener('change', (e) => this.updateVlmOnlyMode(e.target.checked));
     }
 
     connect() {
@@ -149,6 +158,10 @@ class VideoStreamClient {
                     this.setVlmUiState(data.data.mode);
                     break;
 
+                case 'vlm_only_updated':
+                    this.setVlmOnlyUiState(data.data.enabled);
+                    break;
+
                 case 'error':
                     console.error('Server error:', data.message);
                     break;
@@ -200,6 +213,11 @@ class VideoStreamClient {
 
             // Update stats
             this.updateStats(metadata);
+
+            // Update VLM Only Description
+            if (metadata.vlm_only_description) {
+                this.elements.vlmOnlyDescription.textContent = metadata.vlm_only_description;
+            }
 
             // Calculate latency
             const now = Date.now();
@@ -374,8 +392,12 @@ class VideoStreamClient {
                     </div>
                 `;
             } else {
+                // Determine if we should show biological details (hide if N/A or null)
+                const showDetails = !!aiInfo.scientificName && aiInfo.scientificName !== 'N/A';
+
                 aiHtml = `
                     <div class="track-ai-info">
+                        ${showDetails ? `
                         <div class="ai-status-row">
                             <span class="status-badge status-${(aiInfo.conservationStatus || 'unknown').toLowerCase()}">${aiInfo.conservationStatus || 'Unknown'} Status</span>
                             <span class="${aiInfo.isDangerous ? 'ai-danger-badge' : 'ai-safe-badge'}">
@@ -388,24 +410,25 @@ class VideoStreamClient {
                                 <span class="ai-detail-icon">🧬</span>
                                 <div class="ai-detail-text">
                                     <span class="ai-detail-label">Scientific Name</span>
-                                    <span class="ai-detail-value italic">${aiInfo.scientificName || 'N/A'}</span>
+                                    <span class="ai-detail-value italic">${aiInfo.scientificName}</span>
                                 </div>
                             </div>
                             <div class="ai-detail-item">
                                 <span class="ai-detail-icon">🌍</span>
                                 <div class="ai-detail-text">
                                     <span class="ai-detail-label">Habitat</span>
-                                    <span class="ai-detail-value">${aiInfo.habitat || 'N/A'}</span>
+                                    <span class="ai-detail-value">${aiInfo.habitat}</span>
                                 </div>
                             </div>
                             <div class="ai-detail-item">
                                 <span class="ai-detail-icon">🐾</span>
                                 <div class="ai-detail-text">
                                     <span class="ai-detail-label">Behavior</span>
-                                    <span class="ai-detail-value">${aiInfo.behavior || 'N/A'}</span>
+                                    <span class="ai-detail-value">${aiInfo.behavior}</span>
                                 </div>
                             </div>
                         </div>
+                        ` : ''}
 
                         <div class="ai-description-container">
                            <span class="ai-description-label">Expert Note</span>
@@ -473,6 +496,12 @@ class VideoStreamClient {
                 </div>
             `;
         } else {
+            // Determine which sections to show (hide if null, empty, or 'N/A')
+            const hasBio = !!(ai.scientificName && ai.scientificName !== 'N/A');
+            const hasHabitat = !!(ai.habitat && ai.habitat !== 'N/A');
+            const hasBehavior = !!(ai.behavior && ai.behavior !== 'N/A');
+            const hasSafety = !!(ai.safetyInfo && ai.safetyInfo !== 'N/A' && ai.safetyInfo !== 'null');
+
             html = `
                 <div class="detail-section">
                     ${track.frame_snapshot ? `
@@ -480,14 +509,18 @@ class VideoStreamClient {
                             <img src="data:image/jpeg;base64,${track.frame_snapshot}" alt="Snapshot">
                         </div>
                     ` : ''}
+                    ${hasBio ? `
                     <div class="detail-item">
                         <h3>Scientific Name</h3>
                         <p style="font-style: italic;">${ai.scientificName}</p>
                     </div>
+                    ` : ''}
+                    ${ai.conservationStatus && ai.conservationStatus !== 'Unknown' ? `
                     <div class="detail-item">
                         <h3>Conservation Status</h3>
                         <span class="status-badge status-${ai.conservationStatus}">${ai.conservationStatus}</span>
                     </div>
+                    ` : ''}
                     <div class="detail-item">
                         <h3>Safety Status</h3>
                         <p class="${ai.isDangerous ? 'ai-danger' : 'ai-value'}">
@@ -500,18 +533,24 @@ class VideoStreamClient {
                         <h3>Description</h3>
                         <p>${ai.description}</p>
                     </div>
+                    ${hasHabitat ? `
                     <div class="detail-item">
                         <h3>Habitat</h3>
                         <p>${ai.habitat}</p>
                     </div>
+                    ` : ''}
+                    ${hasBehavior ? `
                     <div class="detail-item">
                         <h3>Behavior</h3>
                         <p>${ai.behavior}</p>
                     </div>
+                    ` : ''}
+                    ${hasSafety ? `
                     <div class="detail-item" style="border-top: 1px solid var(--border-color); padding-top: 15px;">
                         <h3>Safety Information</h3>
                         <p>${ai.safetyInfo}</p>
                     </div>
+                    ` : ''}
                 </div>
             `;
         }
@@ -579,16 +618,56 @@ class VideoStreamClient {
 
     setVlmUiState(mode) {
         console.log(`🧠 Updating VLM UI State: ${mode}`);
-        
-        // Update button active states
-        if (mode === 'local') {
-            this.elements.vlmLocalBtn.classList.add('active');
-            this.elements.vlmCloudBtn.classList.remove('active');
-            this.elements.vlmStatusText.innerHTML = 'Current Mode: <strong>Local (Ollama)</strong>';
+
+        const modes = ['local', 'cloud', 'florence'];
+        modes.forEach(m => {
+            const btn = this.elements[`vlm${m.charAt(0).toUpperCase() + m.slice(1)}Btn`];
+            if (btn) btn.classList.toggle('active', mode === m);
+        });
+
+        const modeNames = {
+            'local': 'Local (Ollama)',
+            'cloud': 'Cloud (OpenRouter)',
+            'florence': 'Local (Florence-2)'
+        };
+        this.elements.vlmStatusText.innerHTML = `Current Mode: <strong>${modeNames[mode] || mode}</strong>`;
+    }
+
+    // VLM Only Mode Management
+    async fetchVlmOnlyStatus() {
+        try {
+            const response = await fetch('/api/config/vlm_only');
+            if (response.ok) {
+                const data = await response.json();
+                this.setVlmOnlyUiState(data.enabled);
+            }
+        } catch (error) {
+            console.error('Error fetching VLM Only status:', error);
+        }
+    }
+
+    async updateVlmOnlyMode(enabled) {
+        try {
+            const response = await fetch('/api/config/vlm_only', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled })
+            });
+            if (response.ok) {
+                this.setVlmOnlyUiState(enabled);
+            }
+        } catch (error) {
+            console.error('Error updating VLM Only mode:', error);
+        }
+    }
+
+    setVlmOnlyUiState(enabled) {
+        console.log(`📸 VLM-Only enabled: ${enabled}`);
+        this.elements.vlmOnlyToggle.checked = enabled;
+        if (enabled) {
+            this.elements.vlmOnlyStage.classList.remove('hidden');
         } else {
-            this.elements.vlmCloudBtn.classList.add('active');
-            this.elements.vlmLocalBtn.classList.remove('active');
-            this.elements.vlmStatusText.innerHTML = 'Current Mode: <strong>Cloud (OpenRouter)</strong>';
+            this.elements.vlmOnlyStage.classList.add('hidden');
         }
     }
 }

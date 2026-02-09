@@ -10,7 +10,7 @@ import threading
 import os
 from collections import deque
 from pathlib import Path
-from typing import Set, List, Dict, Optional, Tuple
+from typing import Set, List, Dict, Optional, Tuple, Any
 import sys
 from datetime import datetime, timedelta
 import uuid
@@ -327,6 +327,8 @@ recording_manager: RecordingManager = None
 db_manager: DatabaseManager = None
 tracking_manager: TrackingManager = None
 active_connections: Set[WebSocket] = set()
+last_vlm_only_time = 0
+vlm_only_description = ""
 
 frontend_path = Path(__file__).parent.parent / "frontend"
 app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
@@ -540,6 +542,33 @@ async def set_vlm_mode(data: Dict[str, str]):
     else:
         raise HTTPException(status_code=400, detail="Invalid mode. Use 'local' or 'cloud'")
 
+@app.get("/api/config/vlm_only")
+async def get_vlm_only():
+    return {"enabled": Config.VLM_ONLY_ENABLED, "interval": Config.VLM_ONLY_INTERVAL}
+
+@app.post("/api/config/vlm_only")
+async def set_vlm_only(data: Dict[str, Any]):
+    enabled = data.get("enabled")
+    interval = data.get("interval")
+    
+    if enabled is not None:
+        Config.VLM_ONLY_ENABLED = bool(enabled)
+    if interval is not None:
+        Config.VLM_ONLY_INTERVAL = int(interval)
+        
+    print(f"🔄 [CONFIG] VLM-Only Mode: {'ENABLED' if Config.VLM_ONLY_ENABLED else 'DISABLED'} (Interval: {Config.VLM_ONLY_INTERVAL}s)")
+    
+    # Broadcast to all
+    for websocket in active_connections:
+        try:
+            await websocket.send_json({
+                "type": "vlm_only_updated",
+                "data": {"enabled": Config.VLM_ONLY_ENABLED, "interval": Config.VLM_ONLY_INTERVAL}
+            })
+        except: pass
+        
+    return {"status": "success", "enabled": Config.VLM_ONLY_ENABLED, "interval": Config.VLM_ONLY_INTERVAL}
+
 # ---------------- WEBSOCKET STREAM ---------------- #
 
 @app.websocket("/ws")
@@ -595,6 +624,29 @@ async def websocket_endpoint(websocket: WebSocket):
                 metadata['is_recording'] = rec_stats['active_recordings_count'] > 0
                 metadata['recording_info'] = rec_stats
                 
+                # VLM-ONLY Processing
+                global last_vlm_only_time, vlm_only_description
+                current_time = time.time()
+                if Config.VLM_ONLY_ENABLED and (current_time - last_vlm_only_time >= Config.VLM_ONLY_INTERVAL):
+                    # NEW: Only trigger scene analysis if an animal is currently detected
+                    if detections_list:
+                        last_vlm_only_time = current_time
+                        # Run in thread to avoid blocking the stream
+                        def run_vlm_only(img_b64):
+                            global vlm_only_description
+                            try:
+                                vlm_only_description = ai_broker.analyze_scene(img_b64)
+                                print(f"🤖 [VLM-ONLY] {vlm_only_description}")
+                            except Exception as e:
+                                print(f"✗ [VLM-ONLY] Error: {e}")
+                        
+                        threading.Thread(target=run_vlm_only, args=(jpg_as_text,)).start()
+                    else:
+                        # Reset message when no animal is present to clarify why it's not updating
+                        vlm_only_description = "Scene analysis paused (no animal detected)"
+
+                metadata['vlm_only_description'] = vlm_only_description or "Analyzing scene..."
+
                 await websocket.send_json({
                     "type": "frame",
                     "image": jpg_as_text,

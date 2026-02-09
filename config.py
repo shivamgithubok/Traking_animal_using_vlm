@@ -60,7 +60,12 @@ class Config:
     # AI settings
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
     LOCAL_AI_MODEL = os.getenv("LOCAL_AI_MODEL", "llava:7b")
-    VLM_MODE = os.getenv("VLM_MODE", "cloud") # "cloud" or "local"
+    VLM_MODE = os.getenv("VLM_MODE", "cloud") # "cloud", "local", or "florence"
+    
+    # Florence-2 specific settings
+    FLORENCE_MODEL = os.getenv("FLORENCE_MODEL", "microsoft/Florence-2-base")
+    VLM_ONLY_ENABLED = os.getenv("VLM_ONLY_ENABLED", "false").lower() == "true"
+    VLM_ONLY_INTERVAL = int(os.getenv("VLM_ONLY_INTERVAL", 10)) # Seconds between VLM processing
 
     # Tracker filtering (COCO indices: 14=bird, 15=cat, 16=dog, ... 23=giraffe)
     ALLOWED_CLASSES = [14, 15, 16, 17, 18, 19, 20, 21, 22, 23]

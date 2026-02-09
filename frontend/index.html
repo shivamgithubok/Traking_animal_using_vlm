@@ -108,9 +108,30 @@
                                 <button id="vlmCloudBtn" class="vlm-btn active" data-mode="cloud">
                                     <span class="vlm-icon">☁️</span> Cloud (OpenRouter)
                                 </button>
+                                <button id="vlmFlorenceBtn" class="vlm-btn" data-mode="florence">
+                                    <span class="vlm-icon">🖼️</span> Local (Florence-2)
+                                </button>
                             </div>
                             <div class="vlm-status" id="vlmStatusText">
                                 Current Mode: <strong>Cloud</strong>
+                            </div>
+                        </div>
+
+                        <!-- VLM-Only Mode Panel -->
+                        <div class="panel">
+                            <h2>📸 VLM-Only (Scenic)</h2>
+                            <div class="vlm-only-controls">
+                                <label class="switch-container">
+                                    <input type="checkbox" id="vlmOnlyToggle">
+                                    <span class="slider"></span>
+                                    <span class="switch-label">Enable Scene Analysis</span>
+                                </label>
+                            </div>
+                            <div id="vlmOnlyStage" class="vlm-only-stage hidden">
+                                <div class="expert-note">
+                                    <span class="ai-description-label">Scenic Description (Florence-2)</span>
+                                    <p id="vlmOnlyDescription" class="ai-description-text">Analyzing scene...</p>
+                                </div>
                             </div>
                         </div>
 

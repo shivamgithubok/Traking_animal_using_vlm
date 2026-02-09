@@ -630,6 +630,7 @@ body {
     color: var(--text-primary);
     font-weight: 500;
 }
+
 /* VLM Toggle */
 .vlm-toggle {
     display: flex;
@@ -794,6 +795,101 @@ body {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+/* VLM Only Mode Styles */
+.vlm-only-controls {
+    margin-bottom: 15px;
+}
+
+.switch-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.switch-container input {
+    display: none;
+}
+
+.slider {
+    position: relative;
+    width: 44px;
+    height: 22px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 22px;
+    transition: var(--transition-normal);
+}
+
+.slider:before {
+    content: "";
+    position: absolute;
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background: var(--text-secondary);
+    border-radius: 50%;
+    transition: var(--transition-normal);
+}
+
+input:checked+.slider {
+    background: var(--accent-primary);
+}
+
+input:checked+.slider:before {
+    transform: translateX(22px);
+    background: white;
+}
+
+.switch-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.vlm-only-stage {
+    animation: slideDown 0.3s ease-out;
+}
+
+.expert-note {
+    background: rgba(14, 165, 233, 0.05);
+    border-left: 4px solid var(--accent-primary);
+    padding: 12px;
+    border-radius: 4px 8px 8px 4px;
+}
+
+.ai-description-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent-primary);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.ai-description-text {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.hidden {
+    display: none !important;
 }
 
 .track-ai-info {
